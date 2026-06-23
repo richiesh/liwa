@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>《李娃传》情感时空轨迹 · 古风音律</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
+        body { background: #f8fafc; }
+        :root {
+            --color-positive: #e34a33;
+            --color-negative: #3182bd;
+            --color-neutral: #94a3b8;
+        }
+        .leaflet-popup-content { font-size: 0.9rem; line-height: 1.5; min-width: 200px; }
+        .info-legend {
+            background: white; padding: 8px 12px; border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15); font-size: 12px; line-height: 1.8;
+        }
+        .info-legend i { width: 18px; height: 18px; display: inline-block; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+        .control-panel {
+            transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1), padding 0.2s ease, border-radius 0.3s ease;
+            width: 380px;
+            max-height: 90vh;
+            overflow-y: auto;
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 24px;
+            box-shadow: 0 20px 40px -12px rgba(0,0,0,0.6);
+        }
+        .control-panel.collapsed {
+            width: 56px;
+            border-radius: 40px;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        .control-panel .panel-inner { padding: 18px 16px; }
+        .control-panel.collapsed .panel-inner { display: none; }
+        .control-panel .collapsed-vertical-text {
+            display: none;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            letter-spacing: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #fcd34d;
+            padding: 16px 0;
+            height: 100%;
+            justify-content: center;
+            align-items: center;
+        }
+        .control-panel.collapsed .collapsed-vertical-text { display: flex; }
+        .expand-btn {
+            transition: transform 0.4s ease;
+            background: rgba(255,255,255,0.08);
+            width: 28px; height: 28px;
+            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            cursor: pointer;
+            color: #fff;
+        }
+        .expand-btn:hover { background: rgba(255,255,255,0.2); }
+        .control-panel.collapsed .expand-btn { transform: rotate(180deg); }
+        .control-panel::-webkit-scrollbar { width: 3px; }
+        .control-panel::-webkit-scrollbar-track { background: transparent; }
+        .control-panel::-webkit-scrollbar-thumb { background: #f59e0b; border-radius: 10px; }
+        .speed-slider { accent-color: #f59e0b; height: 4px; }
+        .follow-checkbox:checked { background-color: #f59e0b; border-color: #f59e0b; }
+        .control-btn {
+            transition: all 0.15s;
+            background: rgba(255,255,255,0.1);
+            border-radius: 40px;
+            padding: 4px 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            color: white;
+            font-size: 12px;
+        }
+        .control-btn:hover { background: rgba(255,255,255,0.25); transform: scale(0.95); }
+        .btn-primary { background: #10b981; }
+        .btn-primary:hover { background: #059669; }
+        .traveler-marker { filter: drop-shadow(0 0 8px #f97316); will-change: transform; }
+        .audio-upload::-webkit-file-upload-button {
+            background: #f59e0b; border: none; color: white; padding: 4px 12px;
+            border-radius: 30px; font-size: 11px; cursor: pointer;
+        }
+        .audio-upload::-webkit-file-upload-button:hover { background: #d97706; }
+    </style>
+</head>
+<body>
+
+<div class="max-w-7xl mx-auto px-4 py-5 md:py-8">
+    <div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+        <div>
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-800 tracking-tight">
+                《李娃传》<span class="text-amber-600">情感时空轨迹</span>
+                <span class="text-xs font-mono bg-amber-100 text-amber-800 px-2 py-1 rounded-full ml-2 align-middle">古风音律</span>
+            </h1>
+            <p class="text-gray-500 mt-1 border-l-4 border-amber-400 pl-4 text-sm">动态叙事 · 图表同步 · 内置古风旋律</p>
+        </div>
+        <div class="flex flex-wrap gap-2 text-xs">
+            <span class="bg-white px-3 py-1.5 rounded-full shadow-sm border">❤️ 红正 / 💙 蓝负</span>
+            <span class="bg-white px-3 py-1.5 rounded-full shadow-sm border">⚡ 裂隙·道旁谷底</span>
+            <span class="bg-white px-3 py-1.5 rounded-full shadow-sm border">🎵 古风合成音</span>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200 relative">
+            <div id="map" class="w-full h-[520px] md:h-[580px] z-0"></div>
+            <div class="bg-gray-50/80 px-4 py-2 text-xs text-gray-500 border-t flex flex-wrap justify-between items-center backdrop-blur-sm">
+                <span>🗺️ 底图: CartoDB · 唐长安城遗址映射 (WGS84)</span>
+                <span>📍 图表高亮实时跟随</span>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-4 flex flex-col">
+            <div class="flex items-center gap-2 mb-3">
+                <div class="w-1 h-6 bg-amber-500 rounded-full"></div>
+                <h2 class="font-semibold text-gray-700">📈 情感时序图谱</h2>
+                <span class="text-[10px] text-gray-400 ml-auto">🌟 金色高亮 = 当前行迹</span>
+            </div>
+            <div class="h-60 w-full">
+                <canvas id="emotionChart"></canvas>
+            </div>
+            <div class="mt-3 text-xs text-gray-600 border-t pt-3 space-y-1">
+                <div class="flex gap-2"><span class="font-bold text-amber-600">📖 叙事裂隙：</span>第⑥阶段“道旁鞭尸”无坐标，动画自动跨越，情感坠入 -1.00 深渊。</div>
+                <div class="flex flex-wrap gap-1">
+                    <span class="bg-emerald-50 px-2 py-0.5 rounded">+0.92 初遇巅峰</span>
+                    <span class="bg-rose-50 px-2 py-0.5 rounded">-0.60 宣阳被弃</span>
+                    <span class="bg-indigo-50 px-2 py-0.5 rounded">+1.00 曲江圆满</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 控制面板 -->
+<div id="controlPanel" class="control-panel fixed bottom-5 right-5 z-[1000]">
+    <div class="collapsed-vertical-text"><span>🎛️ 展开控制台</span></div>
+    <div class="panel-inner text-white">
+        <div class="flex items-center justify-between mb-3">
+            <span class="font-bold text-sm flex items-center gap-2">
+                <span class="text-amber-300 text-lg">🚶</span> 荥阳生 · 叙事引擎
+                <span id="statusBadge" class="text-[10px] bg-gray-700/60 px-2 py-0.5 rounded-full ml-1">空闲</span>
+            </span>
+            <button id="togglePanelBtn" class="expand-btn" title="点击收纳/展开面板">⤵</button>
+        </div>
+
+        <div class="flex gap-2 mb-3">
+            <button id="playBtn" class="control-btn btn-primary flex-1">▶ 播放</button>
+            <button id="pauseBtn" class="control-btn flex-1">⏸ 暂停</button>
+            <button id="resetBtn" class="control-btn bg-amber-600/70 flex-1">⟳ 重置</button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 text-xs mb-3">
+            <div class="bg-black/30 rounded-lg px-3 py-1.5 flex items-center gap-1">
+                <span class="opacity-60">📍</span> <span id="currentStageName" class="font-bold text-amber-200 truncate">①入京·布政坊</span>
+            </div>
+            <div class="bg-black/30 rounded-lg px-3 py-1.5 flex items-center gap-1">
+                <span class="opacity-60">💓</span> <span id="currentEmotionVal" class="font-bold text-amber-200">+0.70</span>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2 text-xs mb-2">
+            <span class="opacity-70">⏩ 速度</span>
+            <input type="range" id="speedSlider" min="0.3" max="3.0" step="0.05" value="1.0" class="w-full speed-slider">
+            <span id="speedVal" class="bg-black/40 px-2 py-0.5 rounded text-amber-300 text-[11px] min-w-[36px] text-center">1.0x</span>
+        </div>
+        <div class="flex items-center justify-between text-xs mb-3">
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="followCheckbox" class="follow-checkbox w-3.5 h-3.5 rounded" checked> 
+                <span>🗺️ 视角跟随</span>
+            </label>
+            <span id="progressHint" class="text-amber-200/70 text-[11px]">📍 起点</span>
+        </div>
+        <div class="w-full bg-gray-700/70 rounded-full h-1.5 mb-4">
+            <div id="progressBarFill" class="bg-gradient-to-r from-amber-400 to-amber-500 h-1.5 rounded-full w-0 transition-all duration-150"></div>
+        </div>
+
+        <!-- 音乐控制区（增强古风示例） -->
+        <div class="border-t border-white/10 pt-3">
+            <div class="flex items-center gap-2 text-xs font-medium mb-2">
+                <span>🎵 背景音乐</span>
+                <span class="text-[10px] text-white/40">(上传或使用内置)</span>
+            </div>
+            <div class="flex flex-col gap-2">
+                <!-- 内置古风播放按钮 -->
+                <div class="flex gap-2 items-center">
+                    <button id="guFengPlayBtn" class="control-btn bg-indigo-600/70 px-3">🎵 播放古风示例</button>
+                    <button id="guFengStopBtn" class="control-btn bg-rose-600/50 px-3">⏹ 停止</button>
+                    <span id="guFengStatus" class="text-[10px] text-white/50">未播放</span>
+                </div>
+                <!-- 上传自定义 -->
+                <div class="flex items-center gap-2">
+                    <input type="file" id="audioUpload" accept="audio/*" class="audio-upload text-xs text-white/70 file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:bg-amber-500 file:text-white hover:file:bg-amber-600">
+                </div>
+                <div class="flex gap-2 items-center">
+                    <button id="musicPlayBtn" class="control-btn bg-emerald-600/50 px-3">▶ 播放</button>
+                    <button id="musicPauseBtn" class="control-btn bg-slate-600/50 px-3">⏸ 暂停</button>
+                    <span id="musicStatus" class="text-[10px] text-white/50 truncate flex-1">未加载</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ===================================================================
+    // 1. 配置
+    // ===================================================================
+    const CONFIG = {
+        colorPositive: '#e34a33',
+        colorNegative: '#3182bd',
+        colorNeutral: '#94a3b8',
+        baseRadius: 8,
+        radiusScale: 5,
+        baseSpeed: 0.55,
+        jitterOffset: 0.0002,
+        riftLat: 34.235,
+        riftLng: 108.974,
+        highlightColor: '#fbbf24',
+    };
+
+    // ===================================================================
+    // 2. 叙事数据 (9个节点，含裂隙 seq=6)
+    // ===================================================================
+    const NARRATIVE_DATA = [
+        { seq: 1, name: "①入京·布政坊寓所", place: "布政坊", lon: 108.93, lat: 34.27, emotion: 0.70, certainty: "推断", desc: "荥阳生入京赴举，寓于布政里，踌躇满志。", quote: "荥阳公之子，隽朗有词藻。" },
+        { seq: 2, name: "②初遇·平康坊鸣珂曲", place: "平康坊", lon: 108.97, lat: 34.25, emotion: 0.92, certainty: "推断", desc: "游平康坊，于鸣珂曲初遇李娃，一见倾心。", quote: "娃回眸凝睇，情甚相慕。" },
+        { seq: 3, name: "③同居·平康坊李娃宅", place: "平康坊", lon: 108.97, lat: 34.25, emotion: 0.40, certainty: "推断", desc: "与李娃同居纵情，岁余资财耗尽。", quote: "狎游累月，资财荡尽。" },
+        { seq: 4, name: "④被弃·宣阳坊", place: "宣阳坊", lon: 108.96, lat: 34.24, emotion: -0.60, certainty: "推断", desc: "鸨母设「倒宅计」，诱其迁居后骤然消失，遭弃。", quote: "乃徒舍宣阳，而娃知之，竟不往。" },
+        { seq: 5, name: "⑤沦落·东市凶肆", place: "东市", lon: 108.98, lat: 34.25, emotion: -0.30, certainty: "确定", desc: "流落病困，为凶肆收留作挽歌郎，天门街东西肆赛歌。", quote: "被布裘，执挽歌，音调凄怆。" },
+        { seq: 6, name: "⑥谷底·道旁弃尸", place: "道旁(裂隙)", lon: null, lat: null, emotion: -1.00, certainty: "未知", desc: "父荥阳公认子，怒鞭至几死，弃之于道。", quote: "命左右拖拽而去，气绝，弃于道旁。" },
+        { seq: 7, name: "⑦转折·安邑坊新宅", place: "安邑坊", lon: 108.97, lat: 34.23, emotion: -0.15, certainty: "推断", desc: "雪夜行乞哀号，李娃闻声而出，毅然相救。", quote: "娃闻之，谓其母曰：'此必是也。' 奔出视之。" },
+        { seq: 8, name: "⑧苦读·安邑坊闭门", place: "安邑坊", lon: 108.97, lat: 34.23, emotion: 0.55, certainty: "推断", desc: "李娃励其向学，闭门苦读数年，终登甲科。", quote: "娃馈遗甚厚，勉之曰：'君可自励。'" },
+        { seq: 9, name: "⑨功成·曲江杏园", place: "曲江池", lon: 109.00, lat: 34.20, emotion: 1.00, certainty: "推断", desc: "登第授成都府参军，父子和解、与娃成眷属。", quote: "父子如初，乃纳娃为妇，偕老白头。" }
+    ];
+
+    // ===================================================================
+    // 3. 预处理地图点
+    // ===================================================================
+    function prepareMapData(data) {
+        let points = data.filter(p => p.lon !== null && p.lat !== null).map(p => {
+            let lon = p.lon, lat = p.lat;
+            const samePlace = data.filter(d => d.place === p.place && d.lon !== null);
+            const idx = samePlace.findIndex(d => d.seq === p.seq);
+            if (idx > 0) {
+                lon = p.lon + idx * CONFIG.jitterOffset;
+                lat = p.lat + idx * CONFIG.jitterOffset * 0.6;
+            }
+            return { ...p, displayLon: lon, displayLat: lat };
+        });
+        return points.sort((a,b) => a.seq - b.seq);
+    }
+
+    const mapPoints = prepareMapData(NARRATIVE_DATA);
+    const trajectoryCoords = mapPoints.map(p => [p.displayLat, p.displayLon]);
+    const RIFT_POINT = NARRATIVE_DATA.find(p => p.seq === 6);
+
+    // ===================================================================
+    // 4. 地图引擎 (同前)
+    // ===================================================================
+    const map = L.map('map', { zoomControl: true }).setView([34.24, 108.96], 13);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; CartoDB',
+        subdomains: 'abcd', maxZoom: 18
+    }).addTo(map);
+    L.control.scale({ metric: true, imperial: false }).addTo(map);
+
+    const legend = L.control({ position: 'bottomright' });
+    legend.onAdd = () => {
+        const d = L.DomUtil.create('div', 'info-legend');
+        d.innerHTML = `
+            <div class="font-semibold text-xs">情感色阶</div>
+            <div><i style="background:#e34a33;"></i> 高度正 (+0.8~1.0)</div>
+            <div><i style="background:#fb9a99;"></i> 正 (0~0.8)</div>
+            <div><i style="background:#9ecae1;"></i> 负 (-0.5~0)</div>
+            <div><i style="background:#3182bd;"></i> 深度负 (< -0.5)</div>
+            <div class="mt-1 pt-1 border-t text-gray-500 text-center text-[10px]">⚡ 裂隙点 (无坐标)</div>
+        `;
+        return d;
+    };
+    legend.addTo(map);
+
+    const staticMarkers = [];
+    function getEmotionStyle(emotion) {
+        let color = CONFIG.colorNeutral;
+        if (emotion >= 0.8) color = CONFIG.colorPositive;
+        else if (emotion >= 0.3) color = '#f97316';
+        else if (emotion >= 0) color = '#fb9a99';
+        else if (emotion >= -0.5) color = '#9ecae1';
+        else color = CONFIG.colorNegative;
+        const radius = CONFIG.baseRadius + Math.abs(emotion) * CONFIG.radiusScale;
+        return { color, radius };
+    }
+
+    mapPoints.forEach(point => {
+        const { displayLon, displayLat, name, emotion, desc, seq, certainty } = point;
+        const { color, radius } = getEmotionStyle(emotion);
+        const marker = L.circleMarker([displayLat, displayLon], {
+            radius, fillColor: color, color: '#1e293b', weight: 1.5, opacity: 0.8, fillOpacity: 0.8
+        }).addTo(map);
+        marker.bindPopup(`
+            <div class="font-bold text-gray-800">${name}</div>
+            <div class="text-xs text-gray-600 mt-1">${desc}</div>
+            <div class="text-xs mt-1"><span class="font-mono">💓 ${emotion.toFixed(2)}</span> | ${certainty}</div>
+            <div class="text-xs text-gray-400 italic border-t mt-1 pt-1">"${point.quote || ''}"</div>
+        `);
+        const label = L.divIcon({
+            html: `<div style="background:white; border-radius:30px; width:22px; height:22px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; border:1px solid #475569; box-shadow:0 2px 4px rgba(0,0,0,0.1);">${seq}</div>`,
+            iconSize: [22,22], iconAnchor: [11,11]
+        });
+        L.marker([displayLat, displayLon], { icon: label, interactive: false }).addTo(map);
+        staticMarkers.push({ seq, marker });
+    });
+
+    L.polyline(trajectoryCoords, { color: '#64748b', weight: 3, opacity: 0.5, dashArray: '6, 10' }).addTo(map);
+
+    const riftIcon = L.divIcon({
+        html: `<div style="background:#1e293b; color:white; border-radius:40px; padding:4px 12px; font-size:12px; font-weight:bold; border:1px solid #f59e0b; box-shadow:0 0 20px #f59e0b40;">⚡ 第⑥·道旁谷底 (无坐标)</div>`,
+        iconSize: [150, 30], iconAnchor: [75, 15]
+    });
+    L.marker([CONFIG.riftLat, CONFIG.riftLng], { icon: riftIcon }).addTo(map)
+        .bindPopup(`<strong>叙事裂隙 · 情感深渊 -1.00</strong><br>${RIFT_POINT.desc}<br>“${RIFT_POINT.quote}”<br><span class="text-red-500">⚠️ 此节点无地理坐标，动画将自动跨越</span>`);
+
+    map.fitBounds(trajectoryCoords.concat([[CONFIG.riftLat, CONFIG.riftLng]]));
+
+    // ===================================================================
+    // 5. 动画引擎 (同前，已修复同步)
+    // ===================================================================
+    const Animator = {
+        state: 'idle',
+        currentSegment: 0,
+        t: 0,
+        speedMultiplier: 1.0,
+        lastTimestamp: 0,
+        frameId: null,
+        marker: null,
+        totalSegments: trajectoryCoords.length - 1,
+
+        init() {
+            const icon = L.divIcon({
+                html: `<div style="background:#f97316; width:34px; height:34px; border-radius:50%; border:3px solid white; box-shadow:0 0 20px #f97316; display:flex; align-items:center; justify-content:center; font-size:20px;">🚶</div>`,
+                iconSize: [34,34], className: 'traveler-marker', iconAnchor: [17,17]
+            });
+            this.marker = L.marker(trajectoryCoords[0], { icon }).addTo(map);
+            this.currentSegment = 0;
+            this.t = 0;
+            this.state = 'idle';
+            this.updateUI();
+            const start = staticMarkers.find(m => m.seq === 1);
+            if (start) start.marker.openPopup();
+            return this;
+        },
+
+        update(deltaSec) {
+            if (this.state !== 'playing') return false;
+            if (this.currentSegment >= this.totalSegments) {
+                this.state = 'finished';
+                document.getElementById('statusBadge').innerText = '✅ 终章';
+                this.updateUI();
+                return false;
+            }
+
+            const step = deltaSec * CONFIG.baseSpeed * this.speedMultiplier;
+            let newT = this.t + step;
+
+            if (newT >= 1.0) {
+                const endIdx = this.currentSegment + 1;
+                const endCoord = trajectoryCoords[endIdx];
+                this.marker.setLatLng(endCoord);
+                const arrivedSeq = mapPoints[endIdx].seq;
+                this.triggerArrival(arrivedSeq);
+                this.currentSegment = endIdx;
+                this.t = 0;
+                if (this.currentSegment >= this.totalSegments) {
+                    this.state = 'finished';
+                    document.getElementById('statusBadge').innerText = '✅ 终章';
+                    this.updateUI();
+                    return false;
+                } else {
+                    this.marker.setLatLng(trajectoryCoords[this.currentSegment]);
+                    this.updateUI();
+                    return true;
+                }
+            } else {
+                this.t = newT;
+                const start = L.latLng(trajectoryCoords[this.currentSegment]);
+                const end = L.latLng(trajectoryCoords[this.currentSegment+1]);
+                const lat = start.lat + (end.lat - start.lat) * this.t;
+                const lng = start.lng + (end.lng - start.lng) * this.t;
+                this.marker.setLatLng([lat, lng]);
+                this.updateUI();
+                return true;
+            }
+        },
+
+        triggerArrival(seq) {
+            const station = staticMarkers.find(m => m.seq === seq);
+            if (station) {
+                station.marker.openPopup();
+                station.marker.setStyle({ weight: 5, color: '#fbbf24' });
+                setTimeout(() => station.marker.setStyle({ weight: 1.5, color: '#1e293b' }), 700);
+            }
+            if (seq === 5) {
+                map.openPopup('⚡ 即将跨越“裂隙点” (第⑥道旁谷底)，无地理坐标，直达安邑坊', trajectoryCoords[5], { autoClose: 2500 });
+            }
+            if (seq === 9) {
+                map.openPopup('🏆 曲江圆满 · 功名爱情双丰收！', trajectoryCoords[trajectoryCoords.length-1], { autoClose: 3000 });
+            }
+        },
+
+        updateUI() {
+            let targetIdx = this.currentSegment;
+            if (this.t >= 0.99 && this.currentSegment < this.totalSegments) targetIdx = this.currentSegment + 1;
+            if (targetIdx < mapPoints.length) {
+                const p = mapPoints[targetIdx];
+                document.getElementById('currentStageName').innerText = p.name;
+                document.getElementById('currentEmotionVal').innerText = p.emotion.toFixed(2);
+                document.getElementById('progressHint').innerText = `📍 ${p.name}`;
+                const currentSeq = p.seq;
+                const chartIndex = currentSeq - 1;
+                highlightChartPoint(chartIndex);
+            }
+            const progress = (this.currentSegment + this.t) / this.totalSegments;
+            document.getElementById('progressBarFill').style.width = `${Math.min(100, progress * 100)}%`;
+            const badge = document.getElementById('statusBadge');
+            if (this.state === 'playing') badge.innerText = '▶ 播放中';
+            else if (this.state === 'paused') badge.innerText = '⏸ 暂停';
+            else if (this.state === 'finished') badge.innerText = '✅ 终章';
+            else badge.innerText = '⏹ 空闲';
+        },
+
+        play() {
+            if (this.state === 'finished' || this.currentSegment >= this.totalSegments) this.reset();
+            if (this.state === 'playing') return;
+            this.state = 'playing';
+            this.lastTimestamp = 0;
+            if (this.frameId) cancelAnimationFrame(this.frameId);
+            this.loop();
+        },
+
+        pause() {
+            if (this.state === 'playing') {
+                this.state = 'paused';
+                if (this.frameId) { cancelAnimationFrame(this.frameId); this.frameId = null; }
+                this.updateUI();
+            }
+        },
+
+        reset() {
+            this.state = 'idle';
+            if (this.frameId) { cancelAnimationFrame(this.frameId); this.frameId = null; }
+            this.currentSegment = 0;
+            this.t = 0;
+            this.marker.setLatLng(trajectoryCoords[0]);
+            this.updateUI();
+            const start = staticMarkers.find(m => m.seq === 1);
+            if (start) start.marker.openPopup();
+            document.getElementById('statusBadge').innerText = '⏹ 空闲';
+        },
+
+        loop() {
+            if (this.state !== 'playing') { this.frameId = null; return; }
+            const now = performance.now();
+            if (this.lastTimestamp === 0) this.lastTimestamp = now;
+            const delta = Math.min(0.05, (now - this.lastTimestamp) / 1000);
+            if (delta > 0.005) {
+                const stillGoing = this.update(delta);
+                if (document.getElementById('followCheckbox').checked && stillGoing) {
+                    map.panTo(this.marker.getLatLng(), { animate: true, duration: 0.2 });
+                }
+                if (!stillGoing) {
+                    this.state = 'finished';
+                    this.updateUI();
+                    this.frameId = null;
+                    return;
+                }
+            }
+            this.lastTimestamp = now;
+            this.frameId = requestAnimationFrame(() => this.loop());
+        }
+    };
+
+    // ===================================================================
+    // 6. 情感曲线图表 + 高亮
+    // ===================================================================
+    const emotionColors = NARRATIVE_DATA.map(p => {
+        const e = p.emotion;
+        if (e >= 0.8) return CONFIG.colorPositive;
+        else if (e >= 0.3) return '#f97316';
+        else if (e >= 0) return '#fb9a99';
+        else if (e >= -0.5) return '#9ecae1';
+        else return CONFIG.colorNegative;
+    });
+
+    const ctx = document.getElementById('emotionChart').getContext('2d');
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: NARRATIVE_DATA.map(p => p.seq === 6 ? '⑥裂隙' : p.name.substring(0,3)),
+            datasets: [{
+                label: '情感波动',
+                data: NARRATIVE_DATA.map(p => p.emotion),
+                borderColor: '#d97706',
+                backgroundColor: 'rgba(217,119,6,0.08)',
+                borderWidth: 3,
+                pointRadius: 6,
+                pointHoverRadius: 10,
+                pointBackgroundColor: emotionColors.slice(),
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                tension: 0.25,
+                fill: true,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { 
+                legend: { display: false },
+                tooltip: { callbacks: { label: (item) => `情感值: ${item.raw.toFixed(2)}` } }
+            },
+            scales: { y: { min: -1.2, max: 1.2, grid: { color: '#e2e8f0' } } },
+            onClick: (e, items) => {
+                if (items.length) {
+                    const idx = items[0].index;
+                    const seq = idx + 1;
+                    if (seq === 6) {
+                        map.flyTo([CONFIG.riftLat, CONFIG.riftLng], 13);
+                        map.openPopup('⚡ 裂隙点：第⑥道旁谷底 (-1.00)', [CONFIG.riftLat, CONFIG.riftLng]);
+                    } else {
+                        const target = mapPoints.find(p => p.seq === seq);
+                        if (target) {
+                            map.flyTo([target.displayLat, target.displayLon], 15);
+                            staticMarkers.find(m => m.seq === seq)?.marker.openPopup();
+                        }
+                    }
+                    highlightChartPoint(idx);
+                }
+            }
+        }
+    });
+
+    function highlightChartPoint(index) {
+        if (!chart || index < 0 || index >= chart.data.datasets[0].data.length) return;
+        const defaultColors = emotionColors.slice();
+        const highlightColor = CONFIG.highlightColor || '#fbbf24';
+        const colors = defaultColors.map((c, i) => i === index ? highlightColor : c);
+        chart.data.datasets[0].pointBackgroundColor = colors;
+        const radii = chart.data.datasets[0].data.map((_, i) => i === index ? 12 : 6);
+        chart.data.datasets[0].pointRadius = radii;
+        chart.update('none');
+    }
+
+    setTimeout(() => highlightChartPoint(0), 100);
+
+    // ===================================================================
+    // 7. 内置古风音乐合成器 (Web Audio API)
+    // ===================================================================
+    let guFengCtx = null;
+    let guFengOsc = null;
+    let guFengGain = null;
+    let guFengInterval = null;
+    let isGuFengPlaying = false;
+
+    const guFengPlayBtn = document.getElementById('guFengPlayBtn');
+    const guFengStopBtn = document.getElementById('guFengStopBtn');
+    const guFengStatus = document.getElementById('guFengStatus');
+
+    // 五声音阶频率 (宫商角徵羽) 基于 A4=440，这里使用 C 调
+    const pentatonic = [261.63, 293.66, 329.63, 392.00, 440.00]; // C D E G A (宫商角徵羽)
+
+    function playGuFeng() {
+        if (isGuFengPlaying) {
+            guFengStatus.innerText = '⏳ 已在播放';
+            return;
+        }
+        try {
+            // 创建音频上下文（需要用户手势）
+            if (!guFengCtx) {
+                guFengCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (guFengCtx.state === 'suspended') {
+                guFengCtx.resume();
+            }
+
+            // 主音量
+            guFengGain = guFengCtx.createGain();
+            guFengGain.gain.setValueAtTime(0.15, guFengCtx.currentTime);
+            guFengGain.connect(guFengCtx.destination);
+
+            // 旋律循环：每隔 0.8 秒弹奏一个音符，循环播放
+            let noteIndex = 0;
+            const playNote = () => {
+                if (!isGuFengPlaying) return;
+                const osc = guFengCtx.createOscillator();
+                const gain = guFengCtx.createGain();
+                osc.type = 'sine';   // 可改为 'triangle' 或 'sawtooth' 改变音色
+                const freq = pentatonic[noteIndex % pentatonic.length];
+                osc.frequency.setValueAtTime(freq, guFengCtx.currentTime);
+                gain.gain.setValueAtTime(0.18, guFengCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, guFengCtx.currentTime + 0.5);
+                osc.connect(gain);
+                gain.connect(guFengGain);
+                osc.start(guFengCtx.currentTime);
+                osc.stop(guFengCtx.currentTime + 0.5);
+                noteIndex++;
+                // 添加轻微随机变化，增加古风韵味
+                if (noteIndex % 3 === 0) {
+                    // 偶尔加一个装饰音（上滑音效果）
+                    const slideOsc = guFengCtx.createOscillator();
+                    const slideGain = guFengCtx.createGain();
+                    slideOsc.type = 'sine';
+                    slideOsc.frequency.setValueAtTime(freq * 1.02, guFengCtx.currentTime);
+                    slideOsc.frequency.linearRampToValueAtTime(freq * 0.98, guFengCtx.currentTime + 0.15);
+                    slideGain.gain.setValueAtTime(0.08, guFengCtx.currentTime);
+                    slideGain.gain.exponentialRampToValueAtTime(0.001, guFengCtx.currentTime + 0.15);
+                    slideOsc.connect(slideGain);
+                    slideGain.connect(guFengGain);
+                    slideOsc.start(guFengCtx.currentTime);
+                    slideOsc.stop(guFengCtx.currentTime + 0.15);
+                }
+            };
+
+            // 立即开始循环
+            playNote();
+            guFengInterval = setInterval(playNote, 750);
+
+            isGuFengPlaying = true;
+            guFengStatus.innerText = '🎵 古风播放中';
+        } catch (e) {
+            guFengStatus.innerText = '⚠️ 浏览器不支持 Web Audio';
+            console.warn('GuFeng error:', e);
+        }
+    }
+
+    function stopGuFeng() {
+        if (guFengInterval) {
+            clearInterval(guFengInterval);
+            guFengInterval = null;
+        }
+        if (guFengCtx) {
+            guFengCtx.close().catch(() => {});
+            guFengCtx = null;
+        }
+        isGuFengPlaying = false;
+        guFengStatus.innerText = '⏹ 已停止';
+    }
+
+    guFengPlayBtn.addEventListener('click', playGuFeng);
+    guFengStopBtn.addEventListener('click', stopGuFeng);
+
+    // ===================================================================
+    // 8. UI控件绑定（动画、音乐上传、面板）
+    // ===================================================================
+    document.addEventListener('DOMContentLoaded', () => {
+        const anim = Animator.init();
+
+        document.getElementById('playBtn').addEventListener('click', () => anim.play());
+        document.getElementById('pauseBtn').addEventListener('click', () => anim.pause());
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            anim.reset();
+            highlightChartPoint(0);
+        });
+
+        const speedSlider = document.getElementById('speedSlider');
+        speedSlider.addEventListener('input', (e) => {
+            anim.speedMultiplier = parseFloat(e.target.value);
+            document.getElementById('speedVal').innerText = anim.speedMultiplier.toFixed(1) + 'x';
+        });
+
+        // 上传音乐 (原有)
+        let audio = null;
+        const upload = document.getElementById('audioUpload');
+        const musicPlay = document.getElementById('musicPlayBtn');
+        const musicPause = document.getElementById('musicPauseBtn');
+        const musicStatus = document.getElementById('musicStatus');
+
+        upload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file && file.type.startsWith('audio/')) {
+                if (audio) { audio.pause(); audio = null; }
+                const url = URL.createObjectURL(file);
+                audio = new Audio(url);
+                audio.loop = true;
+                audio.volume = 0.5;
+                musicStatus.innerText = `✅ ${file.name.substring(0, 12)}...`;
+            } else { musicStatus.innerText = '❌ 无效音频'; }
+        });
+
+        musicPlay.addEventListener('click', () => {
+            if (audio) { audio.play().catch(() => musicStatus.innerText = '⚠️ 需用户交互'); musicStatus.innerText = '🎵 播放中'; }
+            else musicStatus.innerText = '请先上传音频';
+        });
+        musicPause.addEventListener('click', () => {
+            if (audio) { audio.pause(); musicStatus.innerText = '⏸ 已暂停'; }
+            else musicStatus.innerText = '无音频';
+        });
+
+        // 面板折叠
+        const panel = document.getElementById('controlPanel');
+        const toggleBtn = document.getElementById('togglePanelBtn');
+        toggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            panel.classList.toggle('collapsed');
+            toggleBtn.textContent = panel.classList.contains('collapsed') ? '⤴' : '⤵';
+            setTimeout(() => map.invalidateSize(), 350);
+        });
+        panel.addEventListener('click', (e) => {
+            if (panel.classList.contains('collapsed') && e.target.closest('.collapsed-vertical-text')) {
+                panel.classList.remove('collapsed');
+                toggleBtn.textContent = '⤵';
+                setTimeout(() => map.invalidateSize(), 350);
+            }
+        });
+
+        window.addEventListener('resize', () => setTimeout(() => map.invalidateSize(), 200));
+        setTimeout(() => map.invalidateSize(), 300);
+    });
+</script>
+</body>
+</html>
